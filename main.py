@@ -6,13 +6,13 @@ from time import sleep
 import logging
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.types import ParseMode
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 logging.basicConfig(level=logging.INFO)
 
-API_TOKEN = '' #your token here
+API_TOKEN = '' #YOUR TOKEN HERE
 
-proxy_url = 'http://proxy.server:3128'
-bot = Bot(token = API_TOKEN, proxy = proxy_url)
+bot = Bot(token = API_TOKEN)
 dp = Dispatcher(bot)
 
 @dp.message_handler(commands=['start', 'start@chat_birthday_bot'])
@@ -67,7 +67,7 @@ async def add_birth(message: types.Message):
 	    data[file[str(message.from_user.id)]["date"]].remove(str(message.from_user.id))
 	data[date].append(str(message.from_user.id))
 	with open('birthdays.json', "w") as f:
-	    json.dump(data, f)
+		json.dump(data, f)
 	file[str(message.from_user.id)].update({"date" : date})
 	with open('usernames.json', "w") as f:
 		json.dump(file, f)
@@ -91,9 +91,17 @@ async def del_birth(message: types.Message):
 	await message.reply('Удалил тебя, возвращайся еще :(')
 
 async def sending():
-	while True:
-		d = datetime.date.today()
-		date = str(d.day) + '.' + str(d.month)
+	d = datetime.date.today()
+	date = str(d.day) + '.' + str(d.month)
+	with open('birthdays.json') as f:
+		file = json.load(f)
+	with open('usernames.json') as f:
+		usernames = json.load(f)
+	for user in file[date]:
+		for chat in usernames[user]["chats"]:
+			await bot.send_message(chat, 'Поздравляем с Днем рождения @' + usernames[user]["name"] + '!🎉\n\nЖелаем ему(ей) всего самого наилучшего!🎉\n\nСердечки для именинника(цы) в студию!❤️')
+	if date == '1.3' and d.year % 4 != 0:
+		date = '29.2'
 		with open('birthdays.json') as f:
 			file = json.load(f)
 		with open('usernames.json') as f:
@@ -101,18 +109,9 @@ async def sending():
 		for user in file[date]:
 			for chat in usernames[user]["chats"]:
 				await bot.send_message(chat, 'Поздравляем с Днем рождения @' + usernames[user]["name"] + '!🎉\n\nЖелаем ему(ей) всего самого наилучшего!🎉\n\nСердечки для именинника(цы) в студию!❤️')
-		if date == '1.3' and d.year % 4 != 0:
-			date = '29.2'
-			with open('birthdays.json') as f:
-				file = json.load(f)
-			with open('usernames.json') as f:
-				usernames = json.load(f)
-			for user in file[date]:
-				for chat in usernames[user]["chats"]:
-					await bot.send_message(chat, 'Поздравляем с Днем рождения @' + usernames[user]["name"] + '!🎉\n\nЖелаем ему(ей) всего самого наилучшего!🎉\n\nСердечки для именинника(цы) в студию!❤️')
-		await asyncio.sleep(86400)
 
 if __name__ == '__main__':
-	loop = asyncio.get_event_loop()
-	loop.create_task(sending())
+	sched = AsyncIOScheduler()
+	sched.add_job(sending, 'cron', hour='10')
+	sched.start()
 	executor.start_polling(dp, skip_updates=True)
